@@ -245,10 +245,21 @@ function alignFrost(): void {
     const parent = stage.getBoundingClientRect();
     const scale = parent.width / 1920;
     if (!scale) return;
+    // Sample every animation frame while a surface moves, including focus lift
+    // and interrupted reorders. The image is already blurred; only its crop changes.
     // Batch layout reads before writes and skip offscreen/inert material surfaces.
     const samples = Array.from(stage.querySelectorAll<HTMLElement>(".frost"))
       .filter((el) => el.offsetWidth > 0 && !el.closest("[inert]"))
-      .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+      .map((el) => ({
+        el,
+        rect: el.getBoundingClientRect(),
+        width: el.offsetWidth,
+        moving: [el, el.closest(".card-slot")].some((surface) =>
+          surface
+            ?.getAnimations()
+            .some((animation) => animation.playState === "running"),
+        ),
+      }))
       .filter(
         ({ rect }) =>
           rect.right > parent.left &&
@@ -256,18 +267,40 @@ function alignFrost(): void {
           rect.bottom > parent.top &&
           rect.top < parent.bottom,
       );
-    for (const { el, rect } of samples) {
+    for (const { el, rect, width } of samples) {
+      // Compensate for the card's focus scale as well as the stage scale so
+      // the wallpaper stays stationary behind the enlarged surface, too.
+      const materialScale = rect.width / width;
+      if (!materialScale) continue;
       el.style.setProperty(
         "--sample-x",
-        `${-(rect.left - parent.left) / scale}px`,
+        `${-(rect.left - parent.left) / materialScale}px`,
       );
       el.style.setProperty(
         "--sample-y",
-        `${-(rect.top - parent.top) / scale}px`,
+        `${-(rect.top - parent.top) / materialScale}px`,
+      );
+      el.style.setProperty(
+        "--sample-width",
+        `${parent.width / materialScale}px`,
+      );
+      el.style.setProperty(
+        "--sample-height",
+        `${parent.height / materialScale}px`,
       );
     }
+    // No idle loop: take one final sample when motion settles, then stop.
+    if (samples.some(({ moving }) => moving)) alignFrost();
   });
 }
+stage.addEventListener("transitionrun", (event) => {
+  if (
+    event.propertyName === "transform" &&
+    event.target instanceof HTMLElement &&
+    event.target.classList.contains("frost")
+  )
+    alignFrost();
+});
 function fit(): void {
   // Native surface comes from the reviewed profile, not panel resolution or
   // overflow-inflated innerWidth/visualViewport. Keep the 1920x1080 design stage.
@@ -1130,10 +1163,8 @@ function renderReorder(target: string): void {
   const before = captureOrder(scene),
     scale = stage.getBoundingClientRect().width / 1920;
   render(target);
-  const animations = animateOrder(scene, before, scale);
-  void Promise.allSettled(
-    animations.map((animation) => animation.finished),
-  ).then(alignFrost);
+  animateOrder(scene, before, scale);
+  alignFrost();
 }
 function moveHomeCard(delta: number): void {
   if (!moving) return;

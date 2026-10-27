@@ -1355,6 +1355,96 @@ test("moving cards interpolate to their slots and keep separate arrow controls i
     page.locator('[data-shelf="inputs"] .card').first(),
   ).toHaveAttribute("data-id", "DP:1");
 });
+test("frost stays aligned with the wallpaper through focus, reorders and interrupted moves", async ({
+  page,
+}) => {
+  // Check projected wallpaper coordinates, including a scaled stage and focus
+  // enlargement, rather than just checking that background styles change.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const sampleMotion = async () =>
+    page.evaluate(async () => {
+      const samples: { error: number; moving: boolean; x: number }[] = [];
+      for (let frame = 0; frame < 18; frame++) {
+        await new Promise<void>((resolve) =>
+          // Inspect the painted frame after all animation-frame callbacks,
+          // regardless of whether this observer or the crop update ran first.
+          requestAnimationFrame(() => setTimeout(resolve, 0)),
+        );
+        const stage = document.querySelector("#stage")!.getBoundingClientRect();
+        for (const face of document.querySelectorAll<HTMLElement>(
+          ".input-face",
+        )) {
+          const rect = face.getBoundingClientRect();
+          const scale = rect.width / face.offsetWidth;
+          const style = getComputedStyle(face);
+          const [width, height] = style.backgroundSize
+            .split(",")[0]
+            .split(" ")
+            .map(parseFloat);
+          const error = Math.max(
+            Math.abs(
+              rect.left +
+                parseFloat(style.backgroundPositionX) * scale -
+                stage.left,
+            ),
+            Math.abs(
+              rect.top +
+                parseFloat(style.backgroundPositionY) * scale -
+                stage.top,
+            ),
+            Math.abs(width * scale - stage.width),
+            Math.abs(height * scale - stage.height),
+          );
+          if (frame > 1)
+            samples.push({
+              error,
+              moving: [face, face.closest(".card-slot")].some((el) =>
+                el?.getAnimations().some((a) => a.playState === "running"),
+              ),
+              x: rect.left,
+            });
+        }
+      }
+      return samples;
+    });
+  await page.keyboard.press("ArrowRight");
+  let samples = await sampleMotion();
+  expect(samples.some((s) => s.moving)).toBe(true);
+  expect(Math.max(...samples.map((s) => s.error))).toBeLessThan(1);
+  await contextMenu(page, "input:DP:1");
+  await item(page, "item-move").click();
+  await page.keyboard.press("ArrowRight");
+  samples = await sampleMotion();
+  expect(samples.some((s) => s.moving)).toBe(true);
+  expect(new Set(samples.map((s) => s.x)).size).toBeGreaterThan(3);
+  expect(Math.max(...samples.map((s) => s.error))).toBeLessThan(1);
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(50);
+  await page.keyboard.press("ArrowLeft");
+  samples = await sampleMotion();
+  expect(samples.some((s) => s.moving)).toBe(true);
+  expect(Math.max(...samples.map((s) => s.error))).toBeLessThan(1);
+  // Settled frost must not keep scheduling style updates in the background.
+  const mutations = await page.evaluate(async () => {
+    let count = 0;
+    const observer = new MutationObserver(
+      (records) => (count += records.length),
+    );
+    document
+      .querySelectorAll(".input-face")
+      .forEach((face) =>
+        observer.observe(face, {
+          attributes: true,
+          attributeFilter: ["style"],
+        }),
+      );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    observer.disconnect();
+    return count;
+  });
+  expect(mutations).toBe(0);
+});
+
 test("move arrows work with the mouse and reduced motion does not animate reordered slots", async ({
   page,
 }) => {

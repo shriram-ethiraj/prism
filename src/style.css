@@ -93,7 +93,7 @@ p {
   background-image:
     linear-gradient(rgba(12, 20, 30, 0.44), rgba(12, 20, 30, 0.44)),
     var(--frost-image);
-  background-size: 1920px 1080px;
+  background-size: var(--sample-width, 1920px) var(--sample-height, 1080px);
   background-position: var(--sample-x) var(--sample-y);
   position: relative;
 }
