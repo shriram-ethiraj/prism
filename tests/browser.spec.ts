@@ -944,7 +944,9 @@ test("input switching announces the label and port, then clears after 3.5 second
   const p = await context.newPage();
   await p.goto("/");
   await expect(item(p, "input:DP:1")).toBeFocused();
-  await p.clock.install();
+  await p.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
+  // Freeze time before activation so click/assertion time cannot age the toast.
+  await p.clock.pauseAt(new Date("2026-01-01T00:01:00Z"));
   await item(p, "input:DP:1").click();
   const toast = p.locator("#toast");
   await expect(toast).toContainText("Switching to DisplayPort 1…");
