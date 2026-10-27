@@ -1,0 +1,5 @@
+# Host-only signing/certificate dependencies. Transport/signing source is vendored.
+# Transitive pins make a fresh isolated install reproducible.
+cryptography==46.0.3
+cffi==2.0.0
+pycparser==2.23

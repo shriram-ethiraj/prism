@@ -1,0 +1,11 @@
+# Build-only dependencies; users receive the runtime inside the installer.
+-r requirements-setup.txt
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+altgraph==0.17.5
+packaging==26.0
+setuptools==80.9.0
+certifi==2026.10.23
+macholib==1.16.4; sys_platform == 'darwin'
+pefile==2024.8.26; sys_platform == 'win32'
+pywin32-ctypes==0.2.3; sys_platform == 'win32'

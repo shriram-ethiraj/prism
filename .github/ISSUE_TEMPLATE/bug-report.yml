@@ -1,0 +1,22 @@
+name: Bug report
+description: Report a reproducible Prism problem.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected result, and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Prism build; browser/host OS for preview, or exact model, firmware, runtime and non-root context for monitor work. Do not include private identifiers/addresses.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Relevant error category or cropped screenshot. Never attach credentials, raw device logs, signed packages, or recovery files.

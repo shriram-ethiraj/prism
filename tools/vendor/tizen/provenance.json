@@ -1,0 +1,41 @@
+{
+  "repository": "https://github.com/helalaou/AeroTizen",
+  "commit": "029b2a97d00e63c25328ddc151da32d4476e06ff",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "sdb.py",
+      "upstream_path": "src/aerotizen/sdb.py",
+      "sha256": "56a1179dc9fda429cc57855ebb28c578b1f74ae7e88aed5d2eb13d78147ae9ab",
+      "vendored_sha256": "b1367c8206684de7f2c1f3ff4f6bb998051c8766f3e650f1891e55e9851e6c1c"
+    },
+    {
+      "path": "signer.py",
+      "upstream_path": "src/aerotizen/signer.py",
+      "sha256": "02cc15a0a7ea97de3efc7c7aa6afe272f41f197921a5de7a631dbea920fc78de",
+      "vendored_sha256": "02cc15a0a7ea97de3efc7c7aa6afe272f41f197921a5de7a631dbea920fc78de"
+    },
+    {
+      "path": "certs.py",
+      "upstream_path": "src/aerotizen/certs.py",
+      "sha256": "a72e7321f2d19192ffdf6f14849ef788a980b74bca85119c1aed98a4a903c631",
+      "vendored_sha256": "f1bbbed898505c7236c9bd72842be6c9428bbf81b779188b6515489490fddf26"
+    },
+    {
+      "path": "ca/vd_tizen_dev_author_ca.cer",
+      "upstream_path": "src/aerotizen/ca/vd_tizen_dev_author_ca.cer",
+      "sha256": "cdb3fe1ec045513d86fa9257c27b18871f2dd5bdc2a0d65c0c8fdacfa63f44f3",
+      "vendored_sha256": "cdb3fe1ec045513d86fa9257c27b18871f2dd5bdc2a0d65c0c8fdacfa63f44f3"
+    },
+    {
+      "path": "ca/vd_tizen_dev_public2.crt",
+      "upstream_path": "src/aerotizen/ca/vd_tizen_dev_public2.crt",
+      "sha256": "64a9295e8676f902253cc00112b51d58fa099aa5f33d33b2050bb55b0caeedbd",
+      "vendored_sha256": "64a9295e8676f902253cc00112b51d58fa099aa5f33d33b2050bb55b0caeedbd"
+    }
+  ],
+  "local_changes": [
+    "Transport: Prism banner, bounded frames/responses.",
+    "Certificate callback: random state, bounded requests, retry until valid response, redacted errors and private directory before writes."
+  ]
+}

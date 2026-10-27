@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <StartupObject>PrismHomeTests</StartupObject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../tizen/native/PrismHome.cs" Link="PrismHome.cs" />
+    <Compile Include="PrismHomeTests.cs" />
+  </ItemGroup>
+</Project>

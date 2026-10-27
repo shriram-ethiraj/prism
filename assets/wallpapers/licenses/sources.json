@@ -1,0 +1,56 @@
+[
+  {
+    "license_uri": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "text_source": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt",
+    "file": "publicdomain-zero-1.0.txt",
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/3.0",
+    "text_source": "https://creativecommons.org/licenses/by-sa/3.0/legalcode.txt",
+    "file": "licenses-by-sa-3.0.txt",
+    "sha256": "3f941b3b89cf7b8370ceb83cc76d2120d471b58735d8ca60238a751a48d7f72f"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "text_source": "https://creativecommons.org/licenses/by-sa/3.0/legalcode.txt",
+    "file": "licenses-by-sa-3.0.txt",
+    "sha256": "3f941b3b89cf7b8370ceb83cc76d2120d471b58735d8ca60238a751a48d7f72f"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/3.0/at/deed.en",
+    "text_source": "https://creativecommons.org/licenses/by-sa/3.0/at/legalcode",
+    "file": "licenses-by-sa-3.0-at.html",
+    "sha256": "9d06ed508888c720bb39edde6da493a276a8c33385b2d7b3b7a3238c9fb97349"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/3.0/pl/deed.en",
+    "text_source": "https://creativecommons.org/licenses/by-sa/3.0/pl/legalcode",
+    "file": "licenses-by-sa-3.0-pl.html",
+    "sha256": "9172a211291fa3e9f81a525a6b0a4a310ec589f606313f007f1bf33762e86fe3"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/4.0",
+    "text_source": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt",
+    "file": "licenses-by-sa-4.0.txt",
+    "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "text_source": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt",
+    "file": "licenses-by-sa-4.0.txt",
+    "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5"
+  },
+  {
+    "license_uri": "https://creativecommons.org/licenses/by/4.0",
+    "text_source": "https://creativecommons.org/licenses/by/4.0/legalcode.txt",
+    "file": "licenses-by-4.0.txt",
+    "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"
+  },
+  {
+    "license_uri": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "text_source": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt",
+    "file": "publicdomain-zero-1.0.txt",
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  }
+]

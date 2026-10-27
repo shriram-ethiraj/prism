@@ -1,0 +1,107 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: npm ci
+      - run: python -m pip install -r requirements-setup.txt
+      - run: npm run build
+      - run: npm run test:packages
+      - run: npm run check
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+      - run: python tools/device_registry.py --check
+      - run: python tools/release_audit.py
+      - run: dotnet run --project tests/native/PrismHome.Tests.csproj
+      - name: Build the guarded helper and public payload once
+        shell: bash
+        run: |
+          helper="$RUNNER_TEMP/prism-native"
+          dotnet build tizen/native/PrismHome.csproj -c Release -o "$helper" -p:BaseIntermediateOutputPath="$helper/obj/" -p:NuGetAudit=false --nologo
+          python tools/distribution.py payload --output .local/distribution/payload --helper-dir "$helper" --commit "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-payload-${{ github.sha }}
+          path: .local/distribution/payload/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  installers:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-22.04
+          - target: macos-x64
+            runner: macos-15-intel
+          - target: macos-arm64
+            runner: macos-14
+          - target: windows-x64
+            runner: windows-2022
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-payload-${{ github.sha }}
+          path: .local/distribution/payload
+      - run: python -m pip install -r requirements-installer.txt
+      - name: Build and smoke-test the standalone archive
+        run: python tools/distribution.py build --payload .local/distribution/payload --output .local/distribution/installers --target ${{ matrix.target }}
+      - name: Test the native bootstrap
+        run: python -m unittest discover -s tests -p test_bootstrap.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prism-installer-${{ matrix.target }}-${{ github.sha }}
+          path: .local/distribution/installers/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [verify, installers]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'shriram-ethiraj/prism'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-prism-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prism-installer-*-${{ github.sha }}
+          path: .local/distribution/installers
+          merge-multiple: true
+      - name: Publish checked installers, then the download manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/publish_installers.py .local/distribution/installers --commit ${{ github.sha }}

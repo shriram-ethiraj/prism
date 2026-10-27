@@ -1,0 +1,46 @@
+# Local/private development and optional inspection downloads
+.private/
+private/
+certificates/
+*.p12
+*.pfx
+*.pem
+*.key
+*.wgt
+.env
+.env.*
+__pycache__/
+node_modules/
+dist/
+packages/
+test-results/
+playwright-report/
+public/wallpapers/
+src/generated/
+assets/wallpapers/custom/*
+!assets/wallpapers/custom/README.md
+.local/
+
+# Host setup environments, native build output and accidental private state
+.venv/
+venv/
+**/bin/
+**/obj/
+password.txt
+device-profile.xml
+*-baseline.json
+*-recovery.json
+*.token
+*.log
+
+# Only public upstream CA anchors belong in source; owner certificates do not.
+*.crt
+*.cer
+!tools/vendor/tizen/ca/*.crt
+!tools/vendor/tizen/ca/*.cer
+
+# Local design/research archive; never required by source builds
+/experimentation/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

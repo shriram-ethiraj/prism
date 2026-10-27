@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "model": "LS28BG702EWXXL",
+  "family": "Samsung Odyssey G70B",
+  "tizen": "6.5",
+  "web_engine": "Chromium 85",
+  "architecture": "armv7l",
+  "privilege": "SDK UID 901 (non-root)",
+  "runtime": "Microsoft.NETCore.App 3.1.3",
+  "logical_surface": {
+    "width": 1920,
+    "height": 1080,
+    "verified": true
+  },
+  "native": {
+    "adapter": "g70b-vconf",
+    "status": "verified",
+    "uid": 901,
+    "runtime": "3.1.3",
+    "operation": "http://tizen.org/appcontrol/operation/main",
+    "libraries": [
+      "libc",
+      "libbundle.so.0",
+      "libaul.so.0",
+      "libcapi-appfw-app-operation-tv.so.0",
+      "libvconf.so.0",
+      "libapp-context-manager-common.so"
+    ],
+    "symbols": [
+      "getuid",
+      "free",
+      "bundle_create",
+      "bundle_free",
+      "aul_svc_set_operation",
+      "aul_get_default_app",
+      "app_operation_set_current_app",
+      "vconf_get_str",
+      "vconf_get_int",
+      "vconf_set_str",
+      "vconf_set_int",
+      "util_is_appbooting_supported_webapp_byappid"
+    ],
+    "keys": {
+      "home": "db/appfw/home_appid",
+      "startup": "db/appfw/startup_appid",
+      "autostart": "db/menu/smart_hub/ontvsetting/auto_start",
+      "observed_only": [
+        "db/appfw/booting_appid_backup",
+        "db/first_screen/type"
+      ]
+    },
+    "observed_metadata_policy": "Boot-backup and first-screen keys are read-only, potentially volatile across app launches, and excluded from owned-setting comparisons and restoration writes.",
+    "known_limits": [
+      "A rapid restore/reapply stress cycle encountered an owned-baseline mismatch and rolled back safely. A subsequent guarded apply succeeded; final live owned settings matched the saved Prism plan after launch. The initiating actor/timing was not established. Never weaken owned-setting guards or retry without checking the saved original baseline."
+    ]
+  },
+  "app_ids": {
+    "prism": "Prizen0001.Home",
+    "samsung_home": "com.samsung.tv.csfs",
+    "samsung_settings": "com.samsung.tv.coba.setting",
+    "native_viewer": "org.tizen.tv-viewer"
+  },
+  "foreground_keys": {
+    "Enter": 13,
+    "Left": 37,
+    "Up": 38,
+    "Right": 39,
+    "Down": 40,
+    "Back": 10009
+  },
+  "notes": "../docs/devices/g70b.md",
+  "evidence": "../docs/devices/g70b.md",
+  "test_date": "2026-10-27",
+  "accepted_reports": [],
+  "results": {
+    "installation": "verified",
+    "apps": "verified",
+    "inputs": "verified",
+    "fullscreen": "verified",
+    "home": "verified",
+    "standby": "verified",
+    "cold_boot": "verified",
+    "recovery": "verified"
+  },
+  "id": "samsung-g70b-1720",
+  "firmware": "T-PTMLWWC-1720.7",
+  "prism_build": "0.2.6 / 0.2.7",
+  "evidence_note": "Owner-tested fullscreen Home/Settings, app/input opening, physical Home, standby/cold boot and prior-Home recovery. The 0.2.7 startup fix was also cold-boot tested without the incorrect Settings flash. See notes for per-check builds and read-only backup metadata behavior.",
+  "observations": {
+    "installation": "2026-10-27: signed installation and running/visible readback; owner saw Prism on screen.",
+    "fullscreen": "2026-10-27: owner physically confirmed Home fills the display and Settings opens without zoom, cropping or blank areas.",
+    "native_context": "2026-10-27: guarded query confirmed exact firmware, ARMv7, .NET 3.1.3 and SDK UID 901.",
+    "native_assignment": "2026-10-27: original state captured externally; same-value readbacks and separate Prism Home/startup writes passed. Subsequent physical lifecycle and recovery results are recorded in their own observations.",
+    "home": "2026-10-27: owner physically confirmed app/input opening and Home return from an instructed streaming-app trial and connected DisplayPort input; streaming app name was not separately specified.",
+    "power": "2026-10-27, Prism 0.2.6: owner confirmed both remote off/on standby resume and monitor-only power disconnect/reconnect cold boot opened Prism; a transient discovery empty-state was reported and fixed in the subsequently installed 0.2.7 build.",
+    "recovery": "2026-10-27, after Prism 0.2.7 installation: original native Home/startup values restored with exact readback; owner pressed physical Home and confirmed the previous launcher opened. Original private baseline remains outside the project.",
+    "startup_presentation": "2026-10-27, Prism 0.2.7: after a fresh monitor-only power-disconnect cold boot, the owner confirmed the tiles appeared without the incorrect Open Settings flash. Earlier 0.2.6 standby/cold-boot and Home checks remain recorded separately.",
+    "samsung_escape": "2026-10-27, Prism 0.2.7: owner confirmed Samsung Home and Samsung Settings opened from System, and physical Home returned to Prism after each.",
+    "final_state": "2026-10-27: refined helper exercised changed-state restoration with readback; guarded apply/foreground verification then succeeded. A separate final native query confirmed all Prism-owned Home/startup values matched the saved plan. Prior fallback remains installed; no root or persistent watcher."
+  }
+}

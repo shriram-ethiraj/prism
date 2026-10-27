@@ -1,0 +1,64 @@
+name: Device report
+description: Share successful or partial Prism testing on a Samsung Tizen monitor.
+title: "[Device] Model / firmware"
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for testing. Include failures too. Never attach IP addresses, serial numbers, DUIDs, credentials, signed widgets, raw device logs, or recovery records. Crop screenshots."
+  - type: input
+    id: model
+    attributes:
+      label: Exact monitor model
+      placeholder: LS28BG702EWXXL
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Full firmware string
+      description: Copy the complete software version from About, including its regional prefix.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Prism build and test date
+    validations:
+      required: true
+  - type: textarea
+    id: runtime
+    attributes:
+      label: Runtime and setup environment
+      description: Tizen version, web engine if known, architecture, native runtime, developer UID/non-root context, and host OS. Use unknown where not checked.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results for each check
+      description: Use pass, fail, or not tested. Installation readback does not prove physical behavior.
+      value: |
+        Installation / physical launch:
+        Fullscreen fit (Home, Settings, dialogs, wallpaper grid; any zoom/cropping):
+        App launching (which apps):
+        Input switching (which connected inputs):
+        Samsung Home / Settings escape:
+        Physical Home from apps (which apps):
+        Physical Home from native input:
+        Standby resume:
+        Cold boot (describe procedure):
+        Original-state restoration / physical Home after restore:
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Reusable findings, problems, and screenshots
+      description: Public API/constants, logical surface dimensions, quirks, and sanitized evidence. Do not paste private original values or raw logs.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed private information and distinguished physical observations from software readbacks.
+          required: true
