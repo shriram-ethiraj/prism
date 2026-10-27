@@ -28,7 +28,7 @@ The icon master is `assets/branding/prism-icon-source.png`. `npm run assets` exp
 
 ## Report a device
 
-Use the [device report form](https://github.com/shriram-ethiraj/prism/issues/new?template=device-report.yml), including partial success and failures. Record full model and firmware, Tizen/web engine, architecture/runtime, developer privilege context, Prism build, and test date. Check installation, fullscreen fit, app/input launch, physical Home, standby resume, cold boot, and recovery independently. Include which app/input you returned from.
+Use the [device report form](https://github.com/shriram-ethiraj/prism/issues/new?template=device-report.yml), including partial success and failures. Start with the model, full firmware string and Prism build, then describe what works. Mark anything you did not check as not tested; runtime details and screenshots are optional. Report standby and cold boot separately, and say whether Home works from an app and an input. Recovery is optional—do not change native settings just to complete a report.
 
 `python tools/setup.py report --tv <TV_IP>` creates a sanitized draft from the local setup record; add physical observations and review it before posting. Never attach certificates, passwords, tokens, serial numbers, DUIDs, addresses, signed packages, raw logs, or recovery files. Crop screenshots accordingly.
 

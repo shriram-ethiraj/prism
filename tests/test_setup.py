@@ -185,6 +185,18 @@ class SetupTests(unittest.TestCase):
         generated = device_registry.render(device_registry.profiles())
         self.assertEqual((setup.ROOT / "VERIFIED_DEVICES.md").read_text(), generated)
 
+    def test_grouped_device_results_preserve_unverified_or_failed_checks(self):
+        record = copy.deepcopy(device_registry.profiles()[0])
+        record["results"] = {key: "verified" for key in device_registry.RESULTS}
+        record["results"].update(fullscreen="pending", inputs="failed", cold_boot="reported")
+        generated = device_registry.render([record])
+        self.assertIn("Install: verified; Screen fit: pending", generated)
+        self.assertIn("Apps: verified; Inputs: failed", generated)
+        self.assertIn("Standby: verified; Cold boot: reported", generated)
+        record["results"]["standby"] = "reported"
+        power_checks = dict(device_registry.TABLE_CHECKS)["Power-on"]
+        self.assertEqual(device_registry.table_status(record["results"], power_checks), "reported")
+
 
 class NativeCoordinatorTests(unittest.TestCase):
     setUp = SetupTests.setUp

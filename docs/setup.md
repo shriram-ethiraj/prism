@@ -4,7 +4,7 @@ Read [AGENTS.md](../AGENTS.md) and [tested devices](../VERIFIED_DEVICES.md). All
 
 ## Standalone installation
 
-The [main-build prerelease](https://github.com/shriram-ethiraj/prism/releases/tag/main-build) provides standalone installers after the first successful full pipeline. Linux x64 uses an Ubuntu 22.04 build baseline (glibc 2.35+); macOS builds use macOS 15 Intel and macOS 14 Apple Silicon runners; Windows x64 uses Windows Server 2022 with Python 3.12. CI smoke checks establish these host environments, not universal Linux/macOS/Windows compatibility. Linux ARM64, Windows ARM64, and musl-based Linux are not supported in this version. Publisher signing and Apple notarization are not included.
+Download standalone installers for Linux x64, macOS Intel/Apple Silicon and Windows x64 from the [downloads page](https://github.com/shriram-ethiraj/prism/releases/tag/main-build). Linux requires glibc 2.35 or newer. Linux ARM64, Windows ARM64, and musl-based Linux are not supported in this version. Publisher signing and Apple notarization are not included.
 
 On Linux/macOS:
 
