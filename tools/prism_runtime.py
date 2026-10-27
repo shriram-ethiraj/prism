@@ -6,7 +6,8 @@ from pathlib import Path
 import sys
 
 FROZEN = bool(getattr(sys, "frozen", False))
-ROOT = Path(sys._MEIPASS) / "prism" if FROZEN else Path(__file__).resolve().parent.parent
+# Windows temp paths may use 8.3 aliases; containment checks compare resolved paths.
+ROOT = (Path(sys._MEIPASS) / "prism").resolve() if FROZEN else Path(__file__).resolve().parent.parent
 INSTALL_ROOT = Path(sys.executable).resolve().parent if FROZEN else ROOT
 HELPER_FILES = ("PrismHome.dll", "PrismHome.deps.json", "PrismHome.runtimeconfig.json")
 
@@ -62,9 +63,20 @@ def checked_resource(name):
     return path
 
 
+def validate_profile_resources(files):
+    from device_registry import profiles
+    records = profiles()
+    if not records:
+        raise ValueError("Installer has no device profiles")
+    for record in records:
+        names = [f"devices/{record['id']}.json",
+                 *("devices/" + record[field] for field in ("evidence", "notes"))]
+        if any(checked_resource(name).relative_to(ROOT).as_posix() not in files for name in names):
+            raise ValueError("Installer device profile resources are missing from the integrity manifest")
+
+
 def validate_bundle():
     """Offline integrity, widget identity, profiles, crypto and helper smoke check."""
-    from device_registry import profiles
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.serialization import pkcs12
@@ -77,7 +89,7 @@ def validate_bundle():
         raise ValueError("--self-check requires a packaged installer")
     if info.get("schema") != 1 or not isinstance(info.get("files"), dict) or not info["files"]:
         raise ValueError("Invalid installer resource manifest")
-    required = {"package.json", "devices/samsung-g70b-1720.json", "tizen/config.xml",
+    required = {"package.json", "tizen/config.xml",
                 *("native/" + name for name in HELPER_FILES),
                 *(f"packages/Prism-{info['version']}-{resolution}-unsigned.wgt"
                   for resolution in ("1080p", "2160p"))}
@@ -97,8 +109,7 @@ def validate_bundle():
             if {"author-signature.xml", "signature1.xml"}.intersection(widget.namelist()):
                 raise ValueError("Distribution widgets must be unsigned")
             validate_wallpapers(widget, profile)
-    if not profiles():
-        raise ValueError("Installer has no device profiles")
+    validate_profile_resources(info["files"])
     for name in ("vd_tizen_dev_author_ca.cer", "vd_tizen_dev_public2.crt"):
         data = (Path(CA_DIR) / name).read_bytes()
         if hashlib.sha256(data).hexdigest() != info["files"]["tools/vendor/tizen/ca/" + name]:

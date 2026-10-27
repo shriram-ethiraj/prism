@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
+import shutil
 import sys
 import tempfile
 import unittest
@@ -11,6 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import distribution
+import device_registry
 import installer_cli
 import native_runner
 import prism_runtime
@@ -81,6 +84,49 @@ class DistributionTests(unittest.TestCase):
             (resource / "link").symlink_to(self.directory / "outside")
             with patch.object(prism_runtime, "ROOT", resource), self.assertRaises(ValueError):
                 prism_runtime.checked_resource("link")
+
+    def test_frozen_resource_root_resolves_aliases_before_profile_validation(self):
+        bundle = self.directory / "bundle"
+        (bundle / "unused").mkdir(parents=True)
+        resources = bundle / "prism"
+        shutil.copytree(ROOT / "devices", resources / "devices")
+        shutil.copytree(ROOT / "docs", resources / "docs")
+        # A noncanonical path models Windows' short temp-directory aliases.
+        alias = bundle / "unused" / ".."
+        with patch.object(sys, "frozen", True, create=True), \
+                patch.object(sys, "_MEIPASS", str(alias), create=True):
+            runtime = runpy.run_path(prism_runtime.__file__)
+        self.assertEqual(runtime["ROOT"], resources.resolve())
+        with patch.object(device_registry, "ROOT", runtime["ROOT"]):
+            self.assertTrue(device_registry.profiles())
+            profile = resources / "devices/samsung-g70b-1720.json"
+            record = json.loads(profile.read_text())
+            outside = self.directory / "outside-evidence.md"
+            outside.write_text("Outside the bundle")
+            record["evidence"] = str(outside)
+            profile.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "missing local evidence"):
+                device_registry.profiles()
+
+    def test_profile_integrity_uses_the_catalog_without_requiring_a_specific_model(self):
+        resources = self.directory / "resources"
+        shutil.copytree(ROOT / "devices", resources / "devices")
+        shutil.copytree(ROOT / "docs", resources / "docs")
+        original = resources / "devices/samsung-g70b-1720.json"
+        record = json.loads(original.read_text())
+        record.update(id="fixture-monitor", model="FixtureMonitor", firmware="fixture")
+        profile = original.with_name("fixture-monitor.json")
+        profile.write_text(json.dumps(record))
+        original.unlink()
+        files = {path.relative_to(resources).as_posix() for path in resources.rglob("*") if path.is_file()}
+        with patch.object(prism_runtime, "ROOT", resources), patch.object(device_registry, "ROOT", resources):
+            prism_runtime.validate_profile_resources(files)
+            for name in ("devices/fixture-monitor.json", "docs/devices/g70b.md"):
+                with self.assertRaisesRegex(ValueError, "missing from the integrity manifest"):
+                    prism_runtime.validate_profile_resources(files - {name})
+            profile.unlink()
+            with self.assertRaisesRegex(ValueError, "no device profiles"):
+                prism_runtime.validate_profile_resources(files)
 
     def test_cli_offline_options_do_not_contact_a_device(self):
         with patch.object(installer_cli.setup, "main") as device, patch("builtins.print"), \
