@@ -73,7 +73,7 @@ jobs:
       - name: Build and smoke-test the standalone archive
         run: python tools/distribution.py build --payload .local/distribution/payload --output .local/distribution/installers --target ${{ matrix.target }}
       - name: Test the native bootstrap
-        run: python -m unittest discover -s tests -p test_bootstrap.py
+        run: python -m unittest discover -s tests -p test_bootstrap.py -v
       - uses: actions/upload-artifact@v4
         with:
           name: prism-installer-${{ matrix.target }}-${{ github.sha }}

@@ -114,4 +114,4 @@ Bug reports, device testing, and pull requests are welcome. Read [CONTRIBUTING.m
 
 ## License and credits
 
-Prism's original code is [MIT licensed](LICENSE). Bundled fonts, photography, brand artwork, and reused setup primitives retain their own attribution and terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Prism is an independent project and is not affiliated with Samsung, NASA, or ESA.
+Prism's original code is [MIT licensed](LICENSE). Bundled fonts, photography, brand artwork, and reused setup primitives retain their own attribution and terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Prism is an independent project and is not affiliated with Samsung.

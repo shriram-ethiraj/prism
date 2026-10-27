@@ -15,6 +15,35 @@ ROOT = Path(__file__).resolve().parent.parent
 COMMIT = "c" * 40
 
 
+def powershell_environment(engine, environment):
+    # pwsh only repairs module paths when launching powershell.exe directly.
+    # With Python in between, 5.1 inherits incompatible PowerShell 7 modules.
+    # Let Windows PowerShell construct its own defaults, without changing ours.
+    return {key: value for key, value in environment.items()
+            if engine != "powershell" or key.upper() != "PSMODULEPATH"}
+
+
+class PowerShellEnvironmentTests(unittest.TestCase):
+    def test_windows_powershell_removes_inherited_module_paths_only(self):
+        original = {"PSModulePath": "core modules", "psmodulepath": "other modules",
+                    "PsMoDuLePaTh": "mixed case", "PATH": "commands", "FIXTURES": "with spaces"}
+        before = original.copy()
+        result = powershell_environment("powershell", original)
+        self.assertEqual(result, {"PATH": "commands", "FIXTURES": "with spaces"})
+        self.assertEqual(original, before)
+
+    def test_pwsh_keeps_module_paths_in_a_separate_environment(self):
+        original = {"PSModulePath": "core modules", "PATH": "commands"}
+        result = powershell_environment("pwsh", original)
+        self.assertEqual(result, original)
+        result["PATH"] = "changed"
+        self.assertEqual(original["PATH"], "commands")
+
+    def test_missing_module_path_is_supported(self):
+        self.assertEqual(powershell_environment("powershell", {"PATH": "commands"}),
+                         {"PATH": "commands"})
+
+
 @unittest.skipIf(os.name == "nt", "POSIX bootstrap; Windows tests use PowerShell below")
 class ShellBootstrapTests(unittest.TestCase):
     def setUp(self):
@@ -135,61 +164,157 @@ class ShellBootstrapTests(unittest.TestCase):
             os.close(terminal)
 
 
-@unittest.skipUnless(os.name == "nt", "Windows bootstrap runs on the Windows packaging runner")
-class PowerShellBootstrapTests(unittest.TestCase):
-    def test_bootstrap_against_local_fixture_and_checksum_failure(self):
+class PowerShellBootstrapCases:
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.engines = {}
+        for engine in ("pwsh", "powershell"):
+            executable = shutil.which(engine)
+            if executable is None:
+                raise AssertionError(f"Required Windows bootstrap engine is missing: {engine}")
+            cls.engines[engine] = executable
+        # Obtain a real PS7 environment even when these tests start in cmd/5.1.
+        probe = subprocess.run([cls.engines["pwsh"], "-NoProfile", "-NonInteractive", "-Command",
+                                "[Console]::Write($env:PSModulePath)"],
+                               env=powershell_environment("pwsh", os.environ),
+                               capture_output=True, text=True, timeout=30)
+        if probe.returncode or not probe.stdout.strip():
+            raise AssertionError("Cannot obtain PowerShell 7 module paths: " + probe.stderr)
+        cls.core_module_path = probe.stdout.strip()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="prism bootstrap spaces ")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
         # The fixture executable is the already smoke-tested native Windows bundle.
-        archives = list((ROOT / ".local/distribution/installers").glob("*.zip"))
-        if not archives:
-            self.skipTest("Build the Windows installer first")
-        with tempfile.TemporaryDirectory(prefix="prism bootstrap spaces ") as temp:
-            root = Path(temp)
-            archive = archives[0]
-            row = json.loads((archive.parent / "windows-x64.json").read_text())
-            fixture = root / "fixtures"
-            fixture.mkdir()
-            shutil.copyfile(archive, fixture / archive.name)
-            manifest = fixture / "downloads.txt"
-            def write_manifest(digest):
-                manifest.write_text(f"# prism-downloads-v1\nwindows-x64 {archive.name} {digest} {row['commit']} {row['version']}\n")
-            script = root / "test.ps1"
-            script.write_text('''$ErrorActionPreference = 'Stop'
-function Invoke-WebRequest { param($UseBasicParsing, $Uri, $OutFile)
+        directory = ROOT / ".local/distribution/installers"
+        metadata = directory / "windows-x64.json"
+        self.assertTrue(metadata.is_file(), "Build the Windows installer first: missing windows-x64.json")
+        self.row = json.loads(metadata.read_text())
+        self.assertEqual(self.row["target"], "windows-x64")
+        name = self.row["file"]
+        self.assertEqual(name, f"prism-setup-windows-x64-{self.row['commit']}.zip")
+        archive = directory / name
+        self.assertTrue(archive.is_file(), "Missing Windows installer archive selected by windows-x64.json")
+        self.fixture = self.root / "fixtures"
+        self.fixture.mkdir()
+        self.archive = self.fixture / name
+        shutil.copyfile(archive, self.archive)
+        self.write_manifest(self.row["sha256"])
+        self.cache = self.root / "installer cache"
+        self.destination = self.cache / ("windows-x64-" + self.row["commit"])
+        self.state = self.root / "private state with spaces"
+        device_state = self.state / hashlib.sha256(b"192.168.5.8").hexdigest()[:20]
+        device_state.mkdir(parents=True)
+        (device_state / "setup.json").write_text(json.dumps({"model": "fixture"}))
+        self.sentinel = device_state / "original.json"
+        self.sentinel.write_text("preserved")
+        self.addCleanup(self.assert_preserved_and_clean)
+        self.env = dict(os.environ, FIXTURES=str(self.fixture), BOOTSTRAP=str(ROOT / "scripts/install.ps1"),
+                        PRISM_INSTALL_DIR=str(self.cache), FIXTURE_STATE=str(self.state))
+        # Explicitly reproduce CI's pwsh -> Python -> powershell inheritance.
+        for key in list(self.env):
+            if key.upper() == "PSMODULEPATH":
+                del self.env[key]
+        self.env["PSModulePath"] = self.core_module_path
+
+    def write_manifest(self, digest):
+        (self.fixture / "downloads.txt").write_text(
+            f"# prism-downloads-v1\nwindows-x64 {self.row['file']} {digest} {self.row['commit']} {self.row['version']}\n")
+
+    def assert_preserved_and_clean(self):
+        self.assertEqual(self.sentinel.read_text(), "preserved")
+        self.assertEqual(list(self.cache.glob(".download.*")), [], "Temporary downloads were not cleaned up")
+
+    def run_script(self, command="& $env:BOOTSTRAP --version"):
+        script = self.root / "test.ps1"
+        script.write_text('''$ErrorActionPreference = 'Stop'
+function Invoke-WebRequest { param([switch]$UseBasicParsing, $Uri, $OutFile)
     Copy-Item -LiteralPath (Join-Path $env:FIXTURES ($Uri.Split('/')[-1])) -Destination $OutFile
 }
-& $env:BOOTSTRAP --version
-'''.replace('param($UseBasicParsing,', 'param([switch]$UseBasicParsing,'))
-            env = dict(os.environ, FIXTURES=str(fixture), BOOTSTRAP=str(ROOT / "scripts/install.ps1"),
-                       PRISM_INSTALL_DIR=str(root / "installer cache"))
-            def run_script(engine):
-                engine_env = dict(env, PRISM_INSTALL_DIR=str(root / (engine + " installer cache")))
-                return subprocess.run([engine, "-NoProfile", "-File", str(script)], env=engine_env, capture_output=True, text=True)
-            write_manifest("0" * 64)
-            for engine in ("pwsh", "powershell"):
-                with self.subTest(engine=engine, scenario="bad checksum"):
-                    bad = run_script(engine)
-                    self.assertNotEqual(bad.returncode, 0)
-                    self.assertIn("checksum mismatch", bad.stderr)
-            write_manifest(row["sha256"])
-            for engine in ("pwsh", "powershell"):
-                with self.subTest(engine=engine, scenario="download"):
-                    good = run_script(engine)
-                    self.assertEqual(good.returncode, 0, good.stderr)
-                    self.assertIn("Prism setup", good.stdout)
-            state = root / "private state with spaces"
-            device_state = state / hashlib.sha256(b"192.168.5.8").hexdigest()[:20]
-            device_state.mkdir(parents=True)
-            (device_state / "setup.json").write_text(json.dumps({"model": "fixture"}))
-            (device_state / "original.json").write_text("preserved")
-            env["FIXTURE_STATE"] = str(state)
-            script.write_text(script.read_text().replace('& $env:BOOTSTRAP --version',
-                '& $env:BOOTSTRAP report --tv 192.168.5.8 --state-dir $env:FIXTURE_STATE'))
-            for engine in ("pwsh", "powershell"):
-                with self.subTest(engine=engine, scenario="cached report with arguments"):
-                    report = run_script(engine)
-                    self.assertEqual(report.returncode, 0, report.stderr)
-                    self.assertIn("fixture", report.stdout)
-            self.assertEqual((device_state / "original.json").read_text(), "preserved")
+try {
+''' + command + '''
+} catch {
+    $failure = $_
+    [Console]::Error.WriteLine(('Engine: {0} {1}; PSHOME: {2}' -f
+        $PSVersionTable.PSEdition, $PSVersionTable.PSVersion, $PSHOME))
+    foreach ($name in @('Get-FileHash', 'Expand-Archive')) {
+        try {
+            $resolved = Get-Command -Name $name -ErrorAction Stop
+            [Console]::Error.WriteLine(('Command: {0}; module: {1}; path: {2}' -f
+                $name, $resolved.Source, $resolved.Module.Path))
+        } catch {
+            [Console]::Error.WriteLine(('Command: {0}; unavailable: {1}' -f $name, $_))
+        }
+    }
+    throw $failure
+}
+''')
+        try:
+            return subprocess.run([self.engines[self.engine], "-NoProfile", "-NonInteractive", "-File", str(script)],
+                                  env=powershell_environment(self.engine, self.env),
+                                  capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired as error:
+            self.fail(f"{self.engine} timed out after 120s; stdout={error.stdout!r}; stderr={error.stderr!r}")
+
+    def install_fixture(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Prism setup", result.stdout)
+        self.assertIn(self.row["version"], result.stdout)
+        self.assertTrue((self.destination / "prism-setup.exe").is_file())
+        self.assert_preserved_and_clean()
+
+    def test_engine_commands_resolve_with_inherited_core_module_paths(self):
+        result = self.run_script('''foreach ($name in @('Get-FileHash', 'Expand-Archive')) {
+    $resolved = Get-Command -Name $name -ErrorAction Stop
+    [Console]::WriteLine($resolved.Name)
+}''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["Get-FileHash", "Expand-Archive"])
+        self.assertFalse(self.cache.exists())
+
+    def test_bad_checksum_never_extracts_or_executes(self):
+        self.write_manifest("0" * 64)
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("checksum mismatch", result.stderr)
+        self.assertNotIn("Prism setup", result.stdout)
+        self.assertEqual(list(self.cache.iterdir()), [])
+
+    def test_fresh_download(self):
+        self.install_fixture()
+
+    def test_cached_report_without_archive_preserves_arguments_and_state(self):
+        self.install_fixture()
+        self.archive.unlink()
+        result = self.run_script('& $env:BOOTSTRAP report --tv 192.168.5.8 --state-dir $env:FIXTURE_STATE')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("fixture", result.stdout)
+        self.assertNotIn("Downloading Prism", result.stdout)
+
+    def test_damaged_cache_stops_before_report(self):
+        self.install_fixture()
+        helper = self.destination / "_internal/prism/native/PrismHome.dll"
+        self.assertTrue(helper.is_file())
+        helper.write_bytes(b"damaged helper fixture")
+        self.archive.unlink()
+        result = self.run_script('& $env:BOOTSTRAP report --tv 192.168.5.8 --state-dir $env:FIXTURE_STATE')
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Cached installer is damaged", result.stderr)
+        self.assertNotIn("# Prism device report draft", result.stdout)
+        self.assertNotIn("Downloading Prism", result.stdout)
+
+
+@unittest.skipUnless(os.name == "nt", "Windows bootstrap runs on the Windows packaging runner")
+class PowerShell7BootstrapTests(PowerShellBootstrapCases, unittest.TestCase):
+    engine = "pwsh"
+
+
+@unittest.skipUnless(os.name == "nt", "Windows bootstrap runs on the Windows packaging runner")
+class WindowsPowerShellBootstrapTests(PowerShellBootstrapCases, unittest.TestCase):
+    engine = "powershell"
 
 
 if __name__ == "__main__":
