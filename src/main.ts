@@ -333,8 +333,8 @@ function fit(): void {
     positionContext();
   });
 }
-function timeText(): string {
-  return new Date().toLocaleTimeString(undefined, {
+function timeText(now: Date): string {
+  return now.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
     ...(prefs.clockFormat === "system"
@@ -343,9 +343,22 @@ function timeText(): string {
   });
 }
 function updateClock(): void {
-  scene.querySelectorAll<HTMLElement>("[data-clock]").forEach((el) => {
-    el.textContent = timeText();
-  });
+  const clock = scene.querySelector<HTMLElement>("[data-clock]"),
+    date = scene.querySelector<HTMLElement>("[data-date]");
+  if (!clock && !date) return;
+  const now = new Date();
+  if (clock) {
+    const text = timeText(now);
+    if (clock.textContent !== text) clock.textContent = text;
+  }
+  if (date) {
+    const text = now.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+    if (date.textContent !== text) date.textContent = text;
+  }
 }
 function toast(
   message: string,
@@ -399,7 +412,7 @@ function renderHome(): string {
   const fallback = initialDiscovery
     ? '<div class="empty-state" role="status" aria-busy="true"><p>Loading apps and inputs…</p></div>'
     : `<div class="empty-state"><p>Enable apps or inputs in Settings.</p>${button("setup", "settings", "Open Settings", "action-button", "top")}</div>`;
-  return `<div class="home"><header class="home-header"><div class="identity">${prefs.clock ? '<div class="clock" data-clock></div>' : ""}${prefs.date ? `<div class="date">${e(new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }))}</div>` : ""}</div><nav class="top-controls" aria-label="Home controls">${prefs.samsungHome ? button("native-home", "native-home", `${icon("home")}<span>Samsung Home</span>`, "top-button", "top") : ""}${button("all-apps", "all", `${icon("apps")}<span>All apps</span>`, "top-button", "top")}${button("settings", "settings", icon("settings"), "top-button square", "top", 'aria-label="Settings"')}</nav></header><div class="shelves">${shelves || fallback}</div></div>`;
+  return `<div class="home"><header class="home-header"><div class="identity">${prefs.clock ? '<div class="clock" data-clock></div>' : ""}${prefs.date ? '<div class="date" data-date></div>' : ""}</div><nav class="top-controls" aria-label="Home controls">${prefs.samsungHome ? button("native-home", "native-home", `${icon("home")}<span>Samsung Home</span>`, "top-button", "top") : ""}${button("all-apps", "all", `${icon("apps")}<span>All apps</span>`, "top-button", "top")}${button("settings", "settings", icon("settings"), "top-button square", "top", 'aria-label="Settings"')}</nav></header><div class="shelves">${shelves || fallback}</div></div>`;
 }
 function renderAll(): string {
   return `<div class="all-page"><header class="page-heading"><h1>All apps</h1>${button("all-back", "home", icon("close"), "top-button square", "all-top", 'aria-label="Close All apps"')}</header><div class="all-grid">${
@@ -1319,7 +1332,10 @@ document.addEventListener("keyup", (event) => {
 });
 // Native Home routing can relaunch an already-foreground app without a keydown
 // or visibility change. The manifest delivers MAIN requests without reloading.
-window.addEventListener("appcontrol", () => home());
+window.addEventListener("appcontrol", () => {
+  home();
+  startTimers();
+});
 window.addEventListener("blur", () => press.cancel());
 // Samsung can foreground the assigned launcher without dispatching appcontrol.
 // Treat native foreground entry as Home, including a focus-only reactivation.
@@ -1333,7 +1349,10 @@ function nativeHome(): void {
     home();
 }
 window.addEventListener("focus", (event) => {
-  if (event.target === window) nativeHome();
+  if (event.target === window) {
+    nativeHome();
+    startTimers();
+  }
 });
 scene.addEventListener("focusin", (event) => {
   const target = (event.target as HTMLElement).closest<HTMLElement>(
@@ -1357,26 +1376,27 @@ function stopTimers(): void {
   clockTimer = rotateTimer = 0;
 }
 function startTimers(): void {
-  stopTimers();
   if (document.hidden) return;
-  clockTimer = window.setInterval(updateClock, 30000);
+  updateClock();
+  if (!clockTimer) clockTimer = window.setInterval(updateClock, 1000);
   // Keep wall-clock progress while Tizen suspends the app; defer visual changes
   // during Settings/editing without postponing the saved deadline.
-  rotateTimer = window.setInterval(() => {
-    if (
-      page !== "home" ||
-      dialog ||
-      moving ||
-      prefs.wallpaperMode !== "rotate" ||
-      Date.now() - prefs.wallpaperChangedAt < prefs.rotationMinutes * 60000
-    )
-      return;
-    const index = wallpapers.findIndex((w) => w.id === prefs.wallpaper);
-    prefs.wallpaper = wallpapers[(index + 1) % wallpapers.length].id;
-    prefs.wallpaperChangedAt = Date.now();
-    save();
-    applyWallpaper();
-  }, 10000);
+  if (!rotateTimer)
+    rotateTimer = window.setInterval(() => {
+      if (
+        page !== "home" ||
+        dialog ||
+        moving ||
+        prefs.wallpaperMode !== "rotate" ||
+        Date.now() - prefs.wallpaperChangedAt < prefs.rotationMinutes * 60000
+      )
+        return;
+      const index = wallpapers.findIndex((w) => w.id === prefs.wallpaper);
+      prefs.wallpaper = wallpapers[(index + 1) % wallpapers.length].id;
+      prefs.wallpaperChangedAt = Date.now();
+      save();
+      applyWallpaper();
+    }, 10000);
 }
 document.addEventListener("visibilitychange", () => {
   press.cancel();
@@ -1386,9 +1406,8 @@ document.addEventListener("visibilitychange", () => {
     frostFrame = 0;
   } else {
     nativeHome();
-    void refresh();
-    updateClock();
     startTimers();
+    void refresh();
     alignFrost();
   }
 });
@@ -1405,7 +1424,6 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
     nativeHome();
     startTimers();
-    updateClock();
     applyWallpaper();
     alignFrost();
   }

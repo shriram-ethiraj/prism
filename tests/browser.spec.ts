@@ -1657,6 +1657,201 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
   });
 }
 
+test.describe("Home clock and date", () => {
+  test.use({ timezoneId: "Asia/Kolkata", locale: "en-IN" });
+
+  test.beforeEach(async ({ page }) => {
+    const time = new Date("2026-12-31T23:59:58+05:30");
+    await page.clock.install({ time });
+    await page.clock.pauseAt(time);
+  });
+
+  async function displayed(page: Page) {
+    return page.evaluate(() => {
+      const now = new Date();
+      return {
+        time: document.querySelector("[data-clock]")?.textContent,
+        date: document.querySelector("[data-date]")?.textContent,
+        expectedTime: now.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        expectedDate: now.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        }),
+      };
+    });
+  }
+
+  for (const trigger of ["focus", "visibility", "pageshow", "appcontrol"]) {
+    test(`${trigger} immediately refreshes stale time/date and restarts stopped timers`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        window.tizen = {
+          application: {
+            getAppsInfo: (ok) => {
+              if (!document.body.dataset.holdDiscovery) ok([]);
+            },
+            launch: (_id, ok) => ok(),
+          },
+          systeminfo: {
+            getPropertyValue: (_key, ok) => {
+              if (!document.body.dataset.holdDiscovery)
+                ok({
+                  connected: [{ type: "DP", number: 1 }],
+                  disconnected: [],
+                });
+            },
+          },
+          tvwindow: { setSource: (_source, ok) => ok() },
+        };
+      });
+      await page.reload();
+      await expect(item(page, "input:DP:1")).toBeFocused();
+      const initial = await displayed(page);
+      expect(initial.time).toBe(initial.expectedTime);
+      expect(initial.date).toBe(initial.expectedDate);
+      await page.evaluate(() => {
+        document.body.dataset.holdDiscovery = "true";
+        document.querySelector(".home")!.setAttribute("data-original", "true");
+        window.dispatchEvent(
+          new PageTransitionEvent("pagehide", { persisted: true }),
+        );
+      });
+      await page.clock.setSystemTime(new Date("2027-01-01T09:10:00+05:30"));
+      expect((await displayed(page)).time).toBe(initial.time);
+      // Read synchronously inside the dispatch: no timer or discovery callback
+      // may be needed to correct the first foreground presentation.
+      const resumed = await page.evaluate((trigger) => {
+        if (trigger === "visibility") {
+          Object.defineProperty(document, "hidden", {
+            configurable: true,
+            value: false,
+          });
+          document.dispatchEvent(new Event("visibilitychange"));
+        } else if (trigger === "pageshow") {
+          window.dispatchEvent(
+            new PageTransitionEvent("pageshow", { persisted: true }),
+          );
+        } else window.dispatchEvent(new Event(trigger));
+        return {
+          time: document.querySelector("[data-clock]")?.textContent,
+          date: document.querySelector("[data-date]")?.textContent,
+          originalHome: document
+            .querySelector(".home")
+            ?.hasAttribute("data-original"),
+        };
+      }, trigger);
+      const expected = await displayed(page);
+      expect(resumed.time).toBe(expected.expectedTime);
+      expect(resumed.date).toBe(expected.expectedDate);
+      if (trigger === "focus") expect(resumed.originalHome).toBe(true);
+
+      // A later device time correction must be picked up in either direction.
+      for (const time of [
+        "2027-01-02T11:22:00+05:30",
+        "2026-12-30T07:45:00+05:30",
+      ]) {
+        await page.clock.setSystemTime(new Date(time));
+        await page.clock.runFor(1000);
+        const updated = await displayed(page);
+        expect(updated.time).toBe(updated.expectedTime);
+        expect(updated.date).toBe(updated.expectedDate);
+      }
+    });
+  }
+
+  for (const clock of [true, false]) {
+    test(`midnight and year-end update the date with clock ${clock ? "enabled" : "disabled"}`, async ({
+      page,
+    }) => {
+      await page.evaluate((clock) => {
+        const prefs = JSON.parse(
+          localStorage.getItem("prizen.preferences.v1")!,
+        );
+        prefs.clock = clock;
+        localStorage.setItem("prizen.preferences.v1", JSON.stringify(prefs));
+      }, clock);
+      await page.reload();
+      await expect(item(page, "input:DP:1")).toBeFocused();
+      const before = await displayed(page);
+      await page.clock.runFor(3000);
+      const after = await displayed(page);
+      expect(after.date).toBe(after.expectedDate);
+      expect(after.date).not.toBe(before.date);
+      expect(after.time).toBe(clock ? after.expectedTime : undefined);
+    });
+  }
+
+  for (const format of ["system", "12", "24"]) {
+    test(`activation preserves ${format} time formatting`, async ({ page }) => {
+      await page.evaluate((format) => {
+        const prefs = JSON.parse(
+          localStorage.getItem("prizen.preferences.v1")!,
+        );
+        prefs.clockFormat = format;
+        localStorage.setItem("prizen.preferences.v1", JSON.stringify(prefs));
+      }, format);
+      await page.reload();
+      await expect(item(page, "input:DP:1")).toBeFocused();
+      await page.clock.setSystemTime(new Date("2027-01-01T19:10:00+05:30"));
+      const result = await page.evaluate((format) => {
+        window.dispatchEvent(new Event("focus"));
+        return {
+          actual: document.querySelector("[data-clock]")?.textContent,
+          expected: new Date().toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+            ...(format === "system" ? {} : { hour12: format === "12" }),
+          }),
+        };
+      }, format);
+      expect(result.actual).toBe(result.expected);
+    });
+  }
+
+  test("one-second checks leave unchanged clock/date DOM untouched", async ({
+    page,
+  }) => {
+    await page.clock.setSystemTime(new Date("2027-01-01T09:10:00+05:30"));
+    await page.reload();
+    await expect(item(page, "input:DP:1")).toBeFocused();
+    await page.evaluate(() => {
+      const identity = document.querySelector(".identity")!;
+      const observer = new MutationObserver((records) => {
+        document.body.dataset.clockMutations = String(records.length);
+      });
+      observer.observe(identity, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      document.querySelector(".home")!.setAttribute("data-original", "true");
+    });
+    await page.clock.runFor(5000);
+    expect(
+      await page.locator("body").getAttribute("data-clock-mutations"),
+    ).toBeNull();
+    await expect(page.locator(".home")).toHaveAttribute(
+      "data-original",
+      "true",
+    );
+    await page.clock.runFor(55000);
+    const after = await displayed(page);
+    expect(after.time).toBe(after.expectedTime);
+    expect(
+      await page.locator("body").getAttribute("data-clock-mutations"),
+    ).toBe("1");
+    await expect(page.locator(".home")).toHaveAttribute(
+      "data-original",
+      "true",
+    );
+  });
+});
+
 test("clock and rotation intervals stop while hidden and resume without accumulation", async ({
   page,
 }) => {
@@ -1685,11 +1880,25 @@ test("clock and rotation intervals stop while hidden and resume without accumula
   expect(baseline).toBeGreaterThanOrEqual(2);
   for (let i = 0; i < 2; i++) {
     await page.evaluate(() => {
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("appcontrol"));
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      );
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(await active()).toBe(baseline);
+    await page.evaluate(() => {
       Object.defineProperty(document, "hidden", {
         configurable: true,
         value: true,
       });
       document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("appcontrol"));
+      window.dispatchEvent(
+        new PageTransitionEvent("pageshow", { persisted: true }),
+      );
     });
     expect(await active()).toBe(baseline - 2);
     await page.evaluate(() => {
@@ -1734,6 +1943,36 @@ test("rapid wallpaper changes ignore outdated loads/errors and retain the last g
   await expect(page.locator("#wallpaper")).toHaveCSS(
     "background-image",
     /w003\.jpg/,
+  );
+});
+
+test("repeated focus refreshes do not postpone wallpaper rotation", async ({
+  page,
+}) => {
+  const time = new Date("2026-10-28T09:00:00Z");
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time);
+  await page.evaluate(() => {
+    const prefs = JSON.parse(localStorage.getItem("prizen.preferences.v1")!);
+    prefs.wallpaperMode = "rotate";
+    prefs.rotationMinutes = 5;
+    prefs.wallpaperChangedAt = Date.now();
+    localStorage.setItem("prizen.preferences.v1", JSON.stringify(prefs));
+  });
+  await page.reload();
+  await expect(item(page, "input:DP:1")).toBeFocused();
+  await expect(page.locator("#wallpaper")).toHaveCSS(
+    "background-image",
+    /w002/,
+  );
+  await page.clock.fastForward(290000);
+  for (let i = 0; i < 10; i++) {
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.clock.runFor(1000);
+  }
+  await expect(page.locator("#wallpaper")).toHaveCSS(
+    "background-image",
+    /w003/,
   );
 });
 

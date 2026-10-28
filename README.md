@@ -1,8 +1,8 @@
 <div align="center">
   <img src="public/icon.png" alt="Prism icon" width="112" />
-  <h1>Prism</h1>
+  <h1>Prism — Minimal Samsung Tizen Launcher</h1>
   <p><strong>Your inputs. Your apps. Your home screen.</strong></p>
-  <p>A minimal launcher for Samsung Tizen monitors.</p>
+  <p>Prism is an open-source, minimal launcher and custom home screen for Samsung Tizen smart monitors. Launch apps, switch HDMI inputs, and customize your layout using your existing remote.</p>
   <p><a href="#installation">Install</a> · <a href="#features">Features</a> · <a href="VERIFIED_DEVICES.md">Tested devices</a> · <a href="#local-development">Development</a> · <a href="LICENSE">MIT license</a></p>
 </div>
 
